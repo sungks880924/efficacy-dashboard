@@ -1,0 +1,1191 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>功效评价台账</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Pretendard', 'Apple SD Gothic Neo', sans-serif;
+    background: #f5f5f3;
+    color: #1a1a1a;
+    min-height: 100vh;
+    padding: 24px 20px;
+  }
+  .top-bar { display:flex; align-items:center; justify-content:space-between; margin-bottom:20px; }
+  .top-title { font-size:17px; font-weight:600; }
+  .top-meta { font-size:12px; color:#888; display:flex; align-items:center; gap:12px; }
+  .sync-btn {
+    font-size:11px; padding:4px 12px; border-radius:12px;
+    border:1px solid #ddd; background:#fff; color:#555; cursor:pointer; transition:all .15s;
+  }
+  .sync-btn:hover { background:#f0f0f0; }
+  .sync-btn.loading { opacity:.5; pointer-events:none; }
+
+  /* ── OCR 업로드 박스 ── */
+  .ocr-box {
+    background:#fff; border-radius:12px; border:1.5px dashed #d1d5db;
+    padding:20px; margin-bottom:20px; transition:border-color .2s;
+  }
+  .ocr-box.dragover { border-color:#3b82f6; background:#eff6ff; }
+  .ocr-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:14px; }
+  .ocr-title { font-size:13px; font-weight:600; color:#1a1a1a; }
+  .ocr-badge { font-size:10px; padding:2px 8px; border-radius:8px; background:#dcfce7; color:#166534; font-weight:500; }
+  .ocr-drop-area {
+    border:1px dashed #e5e5e5; border-radius:8px; padding:24px;
+    text-align:center; cursor:pointer; transition:all .15s;
+    background:#fafafa;
+  }
+  .ocr-drop-area:hover { border-color:#3b82f6; background:#eff6ff; }
+  .ocr-drop-icon { font-size:28px; margin-bottom:8px; }
+  .ocr-drop-text { font-size:13px; color:#666; margin-bottom:4px; }
+  .ocr-drop-sub { font-size:11px; color:#bbb; }
+  .ocr-file-input { display:none; }
+
+  .ocr-preview {
+    display:none; margin-top:12px;
+    background:#f9f9f7; border-radius:8px; padding:12px;
+  }
+  .ocr-preview.show { display:block; }
+  .ocr-preview-inner { display:flex; gap:12px; align-items:flex-start; }
+  .ocr-img { width:80px; height:80px; object-fit:cover; border-radius:6px; border:1px solid #eee; flex-shrink:0; }
+  .ocr-fields { flex:1; display:flex; flex-direction:column; gap:6px; }
+  .ocr-field-row { display:flex; gap:6px; align-items:center; }
+  .ocr-field-label { font-size:11px; color:#999; min-width:52px; flex-shrink:0; }
+  .ocr-field-inp {
+    flex:1; padding:5px 8px; font-size:12px;
+    border-radius:6px; border:1px solid #e5e5e5;
+    background:#fff; color:#1a1a1a; outline:none;
+  }
+  .ocr-field-inp:focus { border-color:#3b82f6; }
+  .ocr-status { font-size:12px; color:#3b82f6; margin-top:8px; min-height:18px; }
+  .ocr-status.error { color:#dc2626; }
+  .ocr-status.ok { color:#16a34a; }
+
+  .ocr-actions { display:flex; gap:6px; margin-top:10px; }
+  .ocr-read-btn {
+    flex:1; padding:8px; font-size:12px; font-weight:500;
+    border-radius:8px; border:none; background:#1a1a1a; color:#fff;
+    cursor:pointer; transition:all .15s;
+  }
+  .ocr-read-btn:hover { background:#333; }
+  .ocr-read-btn:disabled { background:#ccc; cursor:not-allowed; }
+  .ocr-save-btn {
+    flex:1; padding:8px; font-size:12px; font-weight:500;
+    border-radius:8px; border:1px solid #e5e5e5; background:#fff; color:#1a1a1a;
+    cursor:pointer; transition:all .15s;
+  }
+  .ocr-save-btn:hover { background:#f0f0f0; }
+  .ocr-save-btn:disabled { opacity:.4; cursor:not-allowed; }
+  .ocr-cat-select {
+    padding:6px 8px; font-size:12px; border-radius:6px;
+    border:1px solid #e5e5e5; background:#fff; color:#1a1a1a;
+  }
+  .ocr-reset-btn {
+    padding:8px 12px; font-size:12px;
+    border-radius:8px; border:1px solid #e5e5e5; background:#fff; color:#999;
+    cursor:pointer;
+  }
+
+  /* ── 요약 카드 ── */
+
+  /* ── 요약 필터 ── */
+  .summary-filter {
+    display:flex; align-items:center; gap:8px; margin-bottom:10px; flex-wrap:wrap;
+  }
+  .filter-label { font-size:11px; color:#999; }
+  .sf-select {
+    padding:4px 10px; font-size:12px; border-radius:8px;
+    border:1px solid #e5e5e5; background:#fff; color:#1a1a1a;
+    cursor:pointer; outline:none;
+  }
+  .sf-tag { font-size:11px; color:#3b82f6; background:#eff6ff; padding:2px 8px; border-radius:8px; }
+
+  .summary-row { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; margin-bottom:20px; }
+  .sum-card { background:#fff; border-radius:12px; border:1px solid #eee; padding:14px 16px; }
+  .sum-label { font-size:11px; color:#999; margin-bottom:6px; }
+  .sum-num { font-size:26px; font-weight:600; line-height:1; }
+  .sum-sub { font-size:11px; color:#bbb; margin-top:4px; }
+  .c-amber { color:#b45309; }
+  .c-blue  { color:#1d4ed8; }
+  .c-green { color:#15803d; }
+
+  /* ── 섹션 ── */
+  .section { background:#fff; border-radius:12px; border:1px solid #eee; margin-bottom:12px; overflow:hidden; }
+  .sec-header { display:flex; align-items:center; justify-content:space-between; padding:13px 16px; cursor:pointer; user-select:none; transition:background .1s; }
+  .sec-header:hover { background:#fafafa; }
+  .sec-left { display:flex; align-items:center; gap:9px; }
+  .sec-dot { width:7px; height:7px; border-radius:50%; flex-shrink:0; }
+  .dot-a { background:#f59e0b; } .dot-b { background:#3b82f6; } .dot-c { background:#22c55e; }
+  .sec-title { font-size:14px; font-weight:500; }
+  .sec-badge { font-size:11px; padding:2px 9px; border-radius:10px; font-weight:500; }
+  .badge-a { background:#fef3c7; color:#92400e; }
+  .badge-b { background:#dbeafe; color:#1e40af; }
+  .badge-c { background:#dcfce7; color:#166534; }
+  .chevron { font-size:11px; color:#ccc; transition:transform .2s; }
+  .chevron.open { transform:rotate(180deg); }
+  .sec-body { border-top:1px solid #f0f0f0; padding:14px 16px; display:none; }
+  .sec-body.open { display:block; }
+
+  .metrics-row { display:grid; grid-template-columns:repeat(2,1fr); gap:8px; margin-bottom:14px; }
+  .metric-box { background:#f9f9f7; border-radius:8px; padding:10px 12px; }
+  .metric-label { font-size:11px; color:#999; margin-bottom:3px; }
+  .metric-val { font-size:20px; font-weight:600; }
+
+  .chips-label { font-size:11px; color:#999; margin-bottom:8px; }
+  .chips { display:flex; flex-wrap:wrap; gap:6px; min-height:24px; }
+  .chip { display:flex; align-items:center; gap:5px; padding:4px 10px; border-radius:16px; border:1px solid #e5e5e5; background:#fff; font-size:12px; color:#333; }
+  .chip-cnt { font-size:10px; font-weight:600; padding:1px 5px; border-radius:6px; }
+  .cnt-a { background:#fef3c7; color:#92400e; }
+  .cnt-b { background:#dbeafe; color:#1e40af; }
+  .cnt-c { background:#dcfce7; color:#166534; }
+
+  .entry-list { margin-top:12px; display:flex; flex-direction:column; gap:5px; }
+  .entry-row { display:flex; align-items:center; padding:8px 10px; background:#f9f9f7; border-radius:8px; font-size:12px; gap:8px; }
+  .entry-no { font-size:10px; color:#bbb; flex-shrink:0; min-width:60px; }
+  .entry-name { font-weight:500; flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .entry-items { font-size:11px; color:#999; flex-shrink:0; max-width:140px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .entry-actions { display:flex; gap:4px; flex-shrink:0; }
+  .act-btn { font-size:10px; padding:2px 7px; border-radius:8px; border:1px solid #e5e5e5; background:#fff; color:#666; cursor:pointer; white-space:nowrap; transition:all .1s; }
+  .act-btn:hover { background:#f0f0f0; }
+  .act-del:hover { background:#fee2e2; color:#dc2626; border-color:#fca5a5; }
+
+  .add-row { display:flex; gap:6px; margin-top:12px; padding-top:12px; border-top:1px solid #f0f0f0; flex-wrap:wrap; }
+  .add-inp { flex:1; min-width:100px; padding:7px 10px; font-size:12px; border-radius:8px; border:1px solid #e5e5e5; background:#fff; color:#1a1a1a; outline:none; transition:border-color .15s; }
+  .add-inp:focus { border-color:#999; }
+  .add-inp::placeholder { color:#ccc; }
+  .add-submit { padding:7px 14px; font-size:12px; font-weight:500; border-radius:8px; border:1px solid #e5e5e5; background:#1a1a1a; color:#fff; cursor:pointer; white-space:nowrap; transition:all .1s; }
+  .add-submit:hover { background:#333; }
+
+  .empty-msg { font-size:12px; color:#ccc; text-align:center; padding:16px 0; }
+
+  /* ── 년도별 현황표 ── */
+  .yearly-section {
+    background:#fff; border-radius:12px; border:1px solid #eee;
+    margin-bottom:12px; overflow:hidden;
+  }
+  .yearly-header {
+    display:flex; align-items:center; justify-content:space-between;
+    padding:13px 16px; cursor:pointer; user-select:none;
+  }
+  .yearly-header:hover { background:#fafafa; }
+  .yearly-title { font-size:14px; font-weight:500; }
+  .yearly-controls { display:flex; align-items:center; gap:8px; }
+  .year-select {
+    padding:4px 10px; font-size:12px; border-radius:8px;
+    border:1px solid #e5e5e5; background:#fff; color:#1a1a1a;
+    cursor:pointer; outline:none;
+  }
+  .yearly-body { padding:16px; overflow-x:auto; }
+  .stat-table {
+    width:100%; border-collapse:collapse; font-size:11px; min-width:900px;
+  }
+  .stat-table th, .stat-table td {
+    border:1px solid #e5e5e5; padding:5px 6px;
+    text-align:center; white-space:nowrap;
+  }
+  .stat-table th { background:#f5f5f3; font-weight:600; color:#555; }
+  .stat-table td:first-child {
+    text-align:left; font-weight:500; background:#fafaf8;
+    min-width:80px;
+  }
+  .stat-table th:first-child { background:#f5f5f3; min-width:80px; }
+  .stat-table .quarter-header { background:#e8f0fe; color:#1d4ed8; font-weight:700; }
+  .stat-table .total-col { background:#f0fdf4; color:#15803d; font-weight:700; }
+  .stat-cell-val { color:#1d4ed8; font-weight:600; }
+  .stat-cell-zero { color:#ddd; }
+
+  .toast { position:fixed; bottom:24px; left:50%; transform:translateX(-50%); background:#1a1a1a; color:#fff; font-size:13px; padding:10px 20px; border-radius:20px; opacity:0; transition:opacity .3s; pointer-events:none; white-space:nowrap; z-index:999; }
+  .toast.show { opacity:1; }
+  .status-bar { font-size:11px; color:#bbb; text-align:center; margin-top:16px; padding-top:12px; border-top:1px solid #eee; }
+  .status-bar span { color:#22c55e; }
+</style>
+<script src='https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js'></script>
+</head>
+<body>
+
+
+<!-- API 키 입력 모달 -->
+<div class="key-modal-bg" id="keyModalBg" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);z-index:9999;align-items:center;justify-content:center;">
+  <div class="key-modal" style="background:#fff;border-radius:12px;padding:28px;width:380px;box-shadow:0 8px 32px rgba(0,0,0,0.2);">
+    <div style="font-size:15px;font-weight:600;margin-bottom:8px;">Gemini API 密钥输入</div>
+    <div style="font-size:12px;color:#999;margin-bottom:16px;line-height:1.6;">
+      使用AI读取功能需要输入Gemini API密钥。<br>
+      密钥仅保存在本浏览器中，不会外部传输。
+    </div>
+    <input id="keyInp" type="password" placeholder="AIzaSy..." 
+      style="width:100%;padding:10px 12px;font-size:13px;border-radius:8px;border:1px solid #ddd;margin-bottom:12px;outline:none;box-sizing:border-box;font-family:monospace;" />
+    <button onclick="saveApiKey()" 
+      style="width:100%;padding:10px;font-size:13px;font-weight:500;border-radius:8px;border:none;background:#1a1a1a;color:#fff;cursor:pointer;">
+      保存并开始
+    </button>
+  </div>
+</div>
+
+<div class="top-bar">
+  <span class="top-title">功效评价台账</span>
+  <div class="top-meta">
+    <div class="search-box">
+      <input class="search-inp" id="searchInp" placeholder="搜索..." oninput="onSearch(this.value)" />
+      <button class="search-clear" id="searchClear" onclick="clearSearch()">✕</button>
+    </div>
+    <span id="clock"></span>
+    <button class="sync-btn" id="syncBtn" onclick="loadFromSheets()">↻ 刷新</button>
+    <button class="key-setting-btn" onclick="showKeyModal()" title="API키 변경">🔑</button>
+  </div>
+</div>
+
+<!-- ── OCR 업로드 영역 ── -->
+<div class="ocr-box" id="ocrBox">
+  <div class="ocr-header">
+    <span class="ocr-title">委托书自动输入栏</span>
+    <span class="ocr-badge">Gemini AI</span>
+  </div>
+
+  <div class="ocr-drop-area" id="dropArea" onclick="document.getElementById('fileInput').click()"
+    ondragover="onDragOver(event)" ondragleave="onDragLeave(event)" ondrop="onDrop(event)">
+    <div class="ocr-drop-icon">📄</div>
+    <div class="ocr-drop-text">请点击或拖拽委托书截图上传</div>
+    <div class="ocr-drop-sub">支持 PNG, JPG 格式</div>
+  </div>
+  <input type="file" id="fileInput" class="ocr-file-input" accept="image/*" onchange="onFileSelect(event)">
+
+  <div class="ocr-preview" id="ocrPreview">
+    <div class="ocr-preview-inner">
+      <img id="ocrImg" class="ocr-img" src="" alt="미리보기">
+      <div class="ocr-fields">
+        <div class="ocr-field-row">
+          <span class="ocr-field-label">产品名</span>
+          <input class="ocr-field-inp" id="ocr-name" placeholder="自动输入">
+        </div>
+        <div class="ocr-field-row">
+          <span class="ocr-field-label">Lab No</span>
+          <input class="ocr-field-inp" id="ocr-labno" placeholder="自动输入">
+        </div>
+        <div class="ocr-field-row">
+          <span class="ocr-field-label">功效项目</span>
+          <input class="ocr-field-inp" id="ocr-items" placeholder="自动输入">
+        </div>
+        <div class="ocr-field-row">
+          <span class="ocr-field-label">负责人</span>
+          <input class="ocr-field-inp" id="ocr-manager" placeholder="直接输入">
+        </div>
+      </div>
+    </div>
+    <div class="ocr-status" id="ocrStatus"></div>
+    <div class="ocr-actions">
+      <button class="ocr-read-btn" id="ocrReadBtn" onclick="runOCR()">AI读取</button>
+      <select class="ocr-cat-select" id="ocrCat">
+        <option value="pending">예정</option>
+        <option value="ongoing">测试中</option>
+        <option value="done">완료</option>
+      </select>
+      <button class="ocr-save-btn" id="ocrSaveBtn" onclick="saveOCREntry()" disabled>添加到台账</button>
+      <button class="ocr-reset-btn" onclick="resetOCR()">✕</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── 요약 카드 ── -->
+<div class="summary-filter">
+  <span class="filter-label">기간 필터：</span>
+  <select class="sf-select" id="sfYear" onchange="onSfChange()"></select>
+  <select class="sf-select" id="sfMonth" onchange="onSfChange()">
+    <option value="0">全年</option>
+    <option value="1">1月</option><option value="2">2月</option><option value="3">3月</option>
+    <option value="4">4月</option><option value="5">5月</option><option value="6">6月</option>
+    <option value="7">7月</option><option value="8">8月</option><option value="9">9月</option>
+    <option value="10">10月</option><option value="11">11月</option><option value="12">12月</option>
+  </select>
+  <select class="sf-select" id="sfWeek" onchange="onSfChange()">
+    <option value="0">全部周</option>
+    <option value="1">1周</option><option value="2">2周</option>
+    <option value="3">3周</option><option value="4">4周</option>
+  </select>
+  <span class="sf-tag" id="sfTag">全年</span>
+</div>
+<div class="summary-row">
+  <div class="sum-card">
+    <div class="sum-label">测试准备中（未进行）</div>
+    <div class="sum-num c-amber" id="tot-pending">0</div>
+    <div class="sum-sub" id="sub-pending">0件</div>
+  </div>
+  <div class="sum-card">
+    <div class="sum-label">测试中</div>
+    <div class="sum-num c-blue" id="tot-ongoing">0</div>
+    <div class="sum-sub" id="sub-ongoing">0件</div>
+  </div>
+  <div class="sum-card">
+    <div class="sum-label">测试结束</div>
+    <div class="sum-num c-green" id="tot-done">0</div>
+    <div class="sum-sub" id="sub-done">0件</div>
+  </div>
+</div>
+
+<!-- ── 년도별 효능항목 현황표 ── -->
+<div class="yearly-section">
+  <div class="yearly-header" onclick="toggleYearly()">
+    <span class="yearly-title">📊 年度功效项目受理现况</span>
+    <div class="yearly-controls" onclick="event.stopPropagation()">
+      <select class="year-select" id="yearSelect" onchange="renderYearlyTable()"></select>
+      <span id="yearlyChevron" style="font-size:11px;color:#ccc;transition:transform .2s;transform:rotate(180deg);">▼</span>
+    </div>
+  </div>
+  <div class="yearly-body" id="yearlyBody" style="display:block;">
+    <div id="yearlyTable"></div>
+  </div>
+</div>
+
+<div id="sections"></div>
+
+<!-- 연도/월별 통계 -->
+<div class="stat-section" id="statSection">
+  <div class="stat-header" onclick="toggleStat()">
+    <span class="stat-title">📅 年度 / 月度 测试件数统计</span>
+    <span class="chevron" id="statChevron">▼</span>
+  </div>
+  <div class="stat-body" id="statBody"></div>
+</div>
+
+<div class="status-bar" id="statusBar">正在连接 Google Sheets...</div>
+<div class="toast" id="toast"></div>
+
+<script>
+// =====================================================
+// ★ 여기만 수정하세요 ★
+// =====================================================
+const SHEET_ID   = '1n4YsGs2fFWESDjjzRYaUfS4Yf3J-yobAd2aBCbpEqwo';
+const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxCLhUZs2ZaCl9pxpDrMM80FuC_sTLqN9sYpDOHZ0_dOQaTb4Pkusv2RdI5XZZK7qYN/exec';
+// Gemini API 키 - localStorage에서 불러옴
+let GEMINI_KEY = localStorage.getItem('gemini_api_key') || '';
+// =====================================================
+
+const CATS = [
+  { key:'pending', label:'测试准备中（未进行）', dot:'dot-a', badge:'badge-a', cnt:'cnt-a', tot:'tot-pending', sub:'sub-pending' },
+  { key:'ongoing', label:'测试中',       dot:'dot-b', badge:'badge-b', cnt:'cnt-b', tot:'tot-ongoing', sub:'sub-ongoing' },
+  { key:'done',    label:'测试结束',     dot:'dot-c', badge:'badge-c', cnt:'cnt-c', tot:'tot-done',    sub:'sub-done'    },
+];
+
+let state   = { pending:[], ongoing:[], done:[] };
+let open    = { pending:true, ongoing:true, done:true };
+let nextId  = 1;
+let ocrImageBase64 = null;
+let ocrMimeType    = 'image/png';
+
+// ── 시계 ──────────────────────────────────────────
+function updateClock() {
+  const now = new Date();
+  document.getElementById('clock').textContent =
+    now.toLocaleDateString('ko-KR') + ' ' +
+    now.toLocaleTimeString('ko-KR', { hour:'2-digit', minute:'2-digit' });
+}
+updateClock();
+setInterval(updateClock, 60000);
+
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2800);
+}
+
+// ── 드래그&드롭 ───────────────────────────────────
+function onDragOver(e) { e.preventDefault(); document.getElementById('ocrBox').classList.add('dragover'); }
+function onDragLeave()  { document.getElementById('ocrBox').classList.remove('dragover'); }
+function onDrop(e) {
+  e.preventDefault();
+  document.getElementById('ocrBox').classList.remove('dragover');
+  const file = e.dataTransfer.files[0];
+  if (file && file.type.startsWith('image/')) loadImageFile(file);
+}
+function onFileSelect(e) {
+  const file = e.target.files[0];
+  if (file) loadImageFile(file);
+}
+
+function loadImageFile(file) {
+  ocrMimeType = file.type || 'image/png';
+  const reader = new FileReader();
+  reader.onload = (ev) => {
+    const dataUrl = ev.target.result;
+    ocrImageBase64 = dataUrl.split(',')[1];
+    document.getElementById('ocrImg').src = dataUrl;
+    document.getElementById('ocrPreview').classList.add('show');
+    document.getElementById('ocrStatus').textContent = '图片上传完成，请点击"AI读取"按钮。';
+    document.getElementById('ocrStatus').className = 'ocr-status';
+    document.getElementById('ocr-name').value = '';
+    document.getElementById('ocr-items').value = '';
+    document.getElementById('ocrSaveBtn').disabled = true;
+  };
+  reader.readAsDataURL(file);
+}
+
+// ── Gemini API OCR 실행 ───────────────────────────
+async function runOCR() {
+  if (!ocrImageBase64) return;
+  if (!GEMINI_KEY) { showKeyModal(); return; }
+
+  const btn = document.getElementById('ocrReadBtn');
+  btn.disabled = true;
+  btn.textContent = 'AI가 읽는 중...';
+  const statusEl = document.getElementById('ocrStatus');
+  statusEl.textContent = '正在确认可用模型...';
+  statusEl.className = 'ocr-status';
+
+  try {
+    // 1. 사용 가능한 모델 목록 먼저 조회
+    const listRes = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models?key=${GEMINI_KEY}`
+    );
+    const listData = await listRes.json();
+
+    if (listData.error) throw new Error(listData.error.message);
+
+    // generateContent 지원하는 flash 모델 중 첫 번째 선택
+    const models = listData.models || [];
+    const flashModel = models.find(m =>
+      m.supportedGenerationMethods?.includes('generateContent') &&
+      m.name.includes('flash') &&
+      !m.name.includes('image') &&
+      !m.name.includes('audio') &&
+      !m.name.includes('tts')
+    );
+
+    if (!flashModel) throw new Error('没有可用的模型。');
+
+    const modelName = flashModel.name; // 예: models/gemini-2.5-flash-lite
+    statusEl.textContent = `${modelName} 模型分析中...`;
+
+    // 2. 실제 OCR 요청
+    const prompt = `이 이미지는 화장품 효능평가 의뢰서 테이블입니다.
+테이블에 있는 모든 행의 데이터를 순서대로 추출하세요.
+반드시 JSON 배열 형식으로만 답변하세요. 다른 텍스트는 절대 쓰지 마세요.
+
+[{"产品名":"제품명1","LabNo":"MJB0001-AAA","功效项目":"항목1, 항목2"},{"产品名":"제품명2","LabNo":"MJB0002-BBB","功效项目":"항목1, 항목2"}]
+
+규칙:
+- 테이블 헤더(순번, 제품명, Lab No, 시험 항목 등)는 제외하고 데이터 행만 추출
+- 产品名은 제품명 컬럼의 값을 원문 그대로 (번역 금지, 영문/한자/한글 모두 그대로)
+- LabNo는 Lab No 컬럼의 값, 여러개면 슬래시(/)로 구분 (예: MLB1004-DMC/MLB1006-BFF)
+- 功效项目은 시험 항목 컬럼의 값을 원문 그대로 (번역 금지), 쉼표로 구분
+- 괄호 안 부가 설명(电商可用 등 포함) 그대로 포함
+- 없으면 빈 문자열
+- JSON 배열 외 다른 텍스트 절대 금지
+- 순번 1번부터 마지막 번호까지 모든 행 포함`;
+
+    const res = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/${modelName}:generateContent?key=${GEMINI_KEY}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{
+            parts: [
+              { text: prompt },
+              { inline_data: { mime_type: ocrMimeType || 'image/png', data: ocrImageBase64 } }
+            ]
+          }]
+        })
+      }
+    );
+
+    const data = await res.json();
+    if (data.error) throw new Error(data.error.message);
+
+    const text = data.candidates[0].content.parts[0].text;
+    parseGeminiResult(text);
+
+  } catch (err) {
+    statusEl.textContent = '오류: ' + err.message;
+    statusEl.className = 'ocr-status error';
+  }
+
+  btn.disabled = false;
+  btn.textContent = 'AI读取';
+}
+
+// 여러 제품 대기 목록
+let ocrQueue = [];
+let ocrQueueIndex = 0;
+
+function parseGeminiResult(text) {
+  const statusEl = document.getElementById('ocrStatus');
+  try {
+    // ```json 블록 제거 후 JSON 배열 추출
+    let clean = text.trim();
+    clean = clean.replace(/^```json\s*/i, '').replace(/```\s*$/i, '').trim();
+    const startIdx = clean.indexOf('[');
+    const endIdx = clean.lastIndexOf(']');
+    if (startIdx !== -1 && endIdx !== -1) {
+      clean = clean.substring(startIdx, endIdx + 1);
+    }
+    const products = JSON.parse(clean);
+    if (!Array.isArray(products) || products.length === 0) throw new Error('空结果');
+
+    ocrQueue = products;
+    ocrQueueIndex = 0;
+    loadQueueItem(0);
+
+    if (products.length > 1) {
+      statusEl.textContent = `共检测到${products.length}个产品！确认后依次点击"添加到台账"。(1/${products.length})`;
+    } else {
+      statusEl.textContent = '读取完成！确认内容后请点击"添加到台账"按钮。';
+    }
+    statusEl.className = 'ocr-status ok';
+    document.getElementById('ocrSaveBtn').disabled = false;
+
+  } catch(e) {
+    statusEl.textContent = '未找到产品名，请直接输入。';
+    statusEl.className = 'ocr-status error';
+    document.getElementById('ocrSaveBtn').disabled = false;
+  }
+}
+
+function loadQueueItem(idx) {
+  if (!ocrQueue[idx]) return;
+  const p = ocrQueue[idx];
+  document.getElementById('ocr-name').value  = p['产品名'] || p['제품명'] || '';
+  document.getElementById('ocr-labno').value = p['LabNo']  || p['Lab No'] || '';
+  document.getElementById('ocr-items').value = p['功效项目'] || p['시험항목'] || '';
+}
+
+// ── 의뢰서 하단 테이블 파싱 ──────────────────────
+function parseEvaluationText(text) {
+  const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
+  let name = '', labno = '', items = '';
+
+  // OCR은 열을 왼→오른쪽 순으로 한 줄에 읽어냄
+  // 패턴: "产品名(한자)   MJBxxxx-xxx   功效项目"
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+
+    // ── Lab No 추출 (가장 명확한 패턴) ──────────
+    const labMatch = line.match(/([A-Z]{2,}\d{3,}-[A-Z]+)/);
+    if (labMatch && !labno) {
+      labno = labMatch[1];
+
+      // Lab No 기준으로 앞/뒤 분리
+      const parts = line.split(labMatch[1]);
+      const before = parts[0].trim(); // 왼쪽 = 产品名
+      const after  = parts[1] ? parts[1].trim() : ''; // 오른쪽 = 功效项目
+
+      // 产品名: 한자 포함된 부분
+      if (!name && before.match(/[\u4e00-\u9fff]/)) {
+        // 숫자·순번 제거 후 추출
+        name = before.replace(/^\d+\s*/, '').trim();
+      }
+
+      // 功效项目: 오른쪽 내용에서 괄호 제거
+      if (!items && after) {
+        items = after
+          .replace(/[（(][^)）]*[）)]/g, '') // (消費者测试) 등 괄호 제거
+          .replace(/、/g, ', ')
+          .trim();
+      }
+    }
+
+    // ── Lab No가 없는 줄에서 보완 탐색 ──────────
+    // 한자만 있는 줄 → 产品名 후보
+    if (!name && line.match(/^[\u4e00-\u9fff][\u4e00-\u9fff\w]+$/) && line.length > 2) {
+      name = line;
+    }
+
+    // 功效项目 키워드 포함 줄
+    if (!items && line.match(/持妆|保湿|控油|敏感|刺激|美白|弹力/)) {
+      items = line
+        .replace(/[（(][^)）]*[）)]/g, '')
+        .replace(/、/g, ', ')
+        .trim();
+    }
+  }
+
+  return { name, labno, items };
+}
+
+function parseDriveOCRResult(parsed) {
+  const name  = parsed.name  || '';
+  const items = parsed.items || '';
+  const labno = parsed.labno || '';
+
+  document.getElementById('ocr-name').value  = name;
+  document.getElementById('ocr-labno').value = labno;
+  document.getElementById('ocr-items').value = items;
+
+  if (name) {
+    document.getElementById('ocrStatus').textContent = '읽기 완료! 내용을 확인 후 "添加到台账" 버튼을 눌러주세요.';
+    document.getElementById('ocrStatus').className = 'ocr-status ok';
+  } else {
+    document.getElementById('ocrStatus').textContent = '未找到产品名，请直接输入。';
+    document.getElementById('ocrStatus').className = 'ocr-status error';
+  }
+  document.getElementById('ocrSaveBtn').disabled = false;
+}
+
+// ── OCR 결과 저장 ─────────────────────────────────
+async function saveOCREntry() {
+  const name    = document.getElementById('ocr-name').value.trim();
+  const labno   = document.getElementById('ocr-labno').value.trim();
+  const itemsRaw= document.getElementById('ocr-items').value.trim();
+  const manager = document.getElementById('ocr-manager').value.trim();
+  const catKey  = document.getElementById('ocrCat').value;
+
+  if (!name) {
+    document.getElementById('ocr-name').focus();
+    return;
+  }
+
+  const items = itemsRaw.split(/[,，、]/).map(s => s.trim()).filter(Boolean);
+  const entry = {
+    id: nextId++,
+    no: makeNo(),
+    name,
+    labno,
+    items,
+    date: new Date().toISOString().slice(0,10),
+    manager,
+  };
+
+  state[catKey].push(entry);
+  renderAll();
+  await saveToSheets(entry, catKey);
+
+  // 큐에 다음 제품이 있으면 자동으로 다음 항목 로드
+  ocrQueueIndex++;
+  if (ocrQueue.length > 1 && ocrQueueIndex < ocrQueue.length) {
+    loadQueueItem(ocrQueueIndex);
+    const statusEl = document.getElementById('ocrStatus');
+    statusEl.textContent = `(${ocrQueueIndex+1}/${ocrQueue.length}) 确认内容后请点击"添加到台账"按钮。`;
+    statusEl.className = 'ocr-status ok';
+    showToast(`"${name}" 已添加 · 还剩${ocrQueue.length - ocrQueueIndex}个`);
+  } else {
+    showToast(`"${name}" 添加完成 · 已保存至Sheets`);
+    resetOCR();
+    ocrQueue = [];
+    ocrQueueIndex = 0;
+  }
+}
+
+function resetOCR() {
+  ocrImageBase64 = null;
+  document.getElementById('ocrPreview').classList.remove('show');
+  document.getElementById('ocrImg').src = '';
+  document.getElementById('ocr-name').value = '';
+  document.getElementById('ocr-items').value = '';
+  document.getElementById('ocr-manager').value = '';
+  document.getElementById('ocrStatus').textContent = '';
+  document.getElementById('ocrSaveBtn').disabled = true;
+  document.getElementById('fileInput').value = '';
+}
+
+
+
+
+// ── 연도/월별 통계 ─────────────────────────────────
+let statOpen = false;
+
+function toggleStat() {
+  statOpen = !statOpen;
+  document.getElementById('statBody').classList.toggle('open', statOpen);
+  document.getElementById('statChevron').classList.toggle('open', statOpen);
+  if (statOpen) renderStat();
+}
+
+function renderStat() {
+  const body = document.getElementById('statBody');
+  const allEntries = [
+    ...state.pending,
+    ...state.ongoing,
+    ...state.done
+  ];
+
+  if (allEntries.length === 0) {
+    body.innerHTML = '<div class="stat-empty">暂无数据</div>';
+    return;
+  }
+
+  // 연도/월별 집계
+  const yearMap = {};
+  allEntries.forEach(e => {
+    if (!e.date) return;
+    const d = new Date(e.date);
+    if (isNaN(d)) return;
+    const y = d.getFullYear();
+    const m = d.getMonth() + 1;
+    if (!yearMap[y]) yearMap[y] = {};
+    yearMap[y][m] = (yearMap[y][m] || 0) + 1;
+  });
+
+  const months = ['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'];
+  let html = '';
+
+  const years = Object.keys(yearMap).sort((a,b) => b - a);
+  years.forEach(y => {
+    const monthData = yearMap[y];
+    const total = Object.values(monthData).reduce((a,b)=>a+b, 0);
+    const maxVal = Math.max(...Object.values(monthData));
+
+    html += `<div class="year-block">
+      <div class="year-label">${y}年 <span class="year-total">总计 ${total}件</span></div>
+      <div class="month-grid">`;
+
+    for (let m = 1; m <= 12; m++) {
+      const cnt = monthData[m] || 0;
+      const pct = maxVal > 0 ? Math.round((cnt / maxVal) * 100) : 0;
+      html += `<div class="month-card">
+        <div class="month-name">${months[m-1]}</div>
+        <div class="month-num" style="color:${cnt>0?'#1d4ed8':'#ccc'}">${cnt}</div>
+        <div class="month-bar-wrap"><div class="month-bar" style="width:${pct}%"></div></div>
+      </div>`;
+    }
+    html += `</div></div>`;
+  });
+
+  body.innerHTML = html;
+}
+
+// ── API 키 관리 ───────────────────────────────────
+function showKeyModal() {
+  const modal = document.getElementById('keyModalBg');
+  modal.style.display = 'flex';
+  document.getElementById('keyInp').value = GEMINI_KEY || '';
+}
+
+function saveApiKey() {
+  const key = document.getElementById('keyInp').value.trim();
+  if (!key) return;
+  GEMINI_KEY = key;
+  localStorage.setItem('gemini_api_key', key);
+  document.getElementById('keyModalBg').style.display = 'none';
+  showToast('API密钥已保存');
+}
+
+function checkApiKey() {
+  if (!GEMINI_KEY) showKeyModal();
+}
+
+// ── 검색 기능 ─────────────────────────────────────
+let searchKeyword = '';
+
+function onSearch(val) {
+  searchKeyword = val.trim().toLowerCase();
+  const clearBtn = document.getElementById('searchClear');
+  clearBtn.classList.toggle('show', searchKeyword.length > 0);
+  applySearch();
+}
+
+function clearSearch() {
+  document.getElementById('searchInp').value = '';
+  searchKeyword = '';
+  document.getElementById('searchClear').classList.remove('show');
+  applySearch();
+}
+
+function applySearch() {
+  if (!searchKeyword) {
+    document.querySelectorAll('.entry-row').forEach(row => {
+      row.classList.remove('hidden');
+    });
+    document.querySelectorAll('.search-result-msg').forEach(el => el.remove());
+    return;
+  }
+
+  let totalFound = 0;
+  CATS.forEach(cat => {
+    let found = 0;
+    const rows = document.querySelectorAll(`#cat-list-${cat.key} .entry-row`);
+    rows.forEach(row => {
+      const text = row.textContent.toLowerCase();
+      if (text.includes(searchKeyword)) {
+        row.classList.remove('hidden');
+        found++;
+        totalFound++;
+      } else {
+        row.classList.add('hidden');
+      }
+    });
+  });
+}
+
+// ── Google Sheets 연동 ────────────────────────────
+async function loadFromSheets() {
+  const btn = document.getElementById('syncBtn');
+  btn.classList.add('loading'); btn.textContent = '加载中...';
+  try {
+    const res  = await fetch(SCRIPT_URL + '?action=get');
+    const rows = await res.json();
+    state = { pending:[], ongoing:[], done:[] };
+    rows.forEach(r => {
+      const name = r['제품명'] || '';
+      if (!name) return;
+      const entry = {
+        id: nextId++,
+        no: r['접수번호'] || '',
+        name: name,
+        labno: r['LabNO'] || '',
+        items: r['효능항목'] ? r['효능항목'].split(',').map(s=>s.trim()).filter(Boolean) : [],
+        date: r['접수일'] || '',
+        manager: r['담당자'] || '',
+      };
+      const key = statusToKey(r['상태'] || '');
+      if (state[key]) state[key].push(entry);
+    });
+    document.getElementById('statusBar').innerHTML =
+      `最后同步: <span>${new Date().toLocaleTimeString('ko-KR')}</span> &nbsp;|&nbsp; 正在同步 Google Sheets`;
+    showToast('数据加载完成');
+  } catch(e) { showToast('加载失败，请检查网络'); }
+  btn.classList.remove('loading'); btn.textContent = '↻ 刷新';
+  renderAll();
+  if (yearlyOpen) renderYearlyTable();
+}
+
+async function saveToSheets(entry, status) {
+  const row = {
+    '접수번호': entry.no,
+    '제품명':   entry.name,
+    'LabNO':    entry.labno || '',
+    '효능항목': entry.items.join(', '),
+    '상태':     keyToStatus(status),
+    '접수일':   entry.date,
+    '담당자':   entry.manager,
+  };
+  try { await fetch(SCRIPT_URL, { method:'POST', body:JSON.stringify({ action:'add', row }) }); } catch(e) {}
+}
+async function updateSheets(no, status) {
+  try { await fetch(SCRIPT_URL, { method:'POST', body:JSON.stringify({ action:'update', no, status:keyToStatus(status) }) }); } catch(e) {}
+}
+async function deleteFromSheets(no) {
+  try { await fetch(SCRIPT_URL, { method:'POST', body:JSON.stringify({ action:'delete', no }) }); } catch(e) {}
+}
+
+function statusToKey(s) {
+  if (!s) return 'pending';
+  if (s.includes('进行中') || s.includes('测试中') || s.includes('진행중')) return 'ongoing';
+  if (s.includes('已结束') || s.includes('완료')) return 'done';
+  return 'pending';
+}
+function keyToStatus(k) { return { pending:'准备中', ongoing:'进行中', done:'已结束' }[k] || '예정'; }
+
+function makeNo() {
+  const d = new Date();
+  const ym = d.getFullYear().toString().slice(2) + String(d.getMonth()+1).padStart(2,'0');
+  const total = state.pending.length + state.ongoing.length + state.done.length + 1;
+  return `RCV-${ym}-${String(total).padStart(3,'0')}`;
+}
+
+function countItems(key) {
+  const c = {};
+  state[key].forEach(e => e.items.forEach(it => { c[it] = (c[it]||0)+1; }));
+  return c;
+}
+
+
+// ── 요약카드 필터 ──────────────────────────────────────
+function initSfYear() {
+  const sel = document.getElementById('sfYear');
+  const cur = new Date().getFullYear();
+  sel.innerHTML = '';
+  for (let y = cur; y >= cur-3; y--) {
+    const o = document.createElement('option');
+    o.value = y; o.textContent = y+'年';
+    if (y === cur) o.selected = true;
+    sel.appendChild(o);
+  }
+}
+
+function getSfFilter() {
+  const year  = parseInt(document.getElementById('sfYear').value);
+  const month = parseInt(document.getElementById('sfMonth').value);
+  const week  = parseInt(document.getElementById('sfWeek').value);
+  return { year, month, week };
+}
+
+function filterEntries(entries) {
+  const { year, month, week } = getSfFilter();
+  return entries.filter(e => {
+    const wi = getWeekInfo(e.date);
+    if (!wi) return false;
+    if (wi.year !== year) return false;
+    if (month !== 0 && wi.month !== month) return false;
+    if (week  !== 0 && wi.weekOfMonth !== week) return false;
+    return true;
+  });
+}
+
+function onSfChange() {
+  const { year, month, week } = getSfFilter();
+  let tag = year + '年';
+  if (month !== 0) tag += ' ' + month + '月';
+  if (week  !== 0) tag += ' ' + week + '周';
+  document.getElementById('sfTag').textContent = tag;
+  updateSummaryFiltered();
+}
+
+function updateSummaryFiltered() {
+  CATS.forEach(c => {
+    const filtered = filterEntries(state[c.key]);
+    const items = {};
+    filtered.forEach(e => e.items.forEach(it => { items[it] = (items[it]||0)+1; }));
+    const total = Object.values(items).reduce((a,b)=>a+b,0);
+    document.getElementById(c.tot).textContent = filtered.length;
+    document.getElementById(c.sub).textContent = total + '件';
+  });
+}
+
+function updateSummary() {
+  updateSummaryFiltered();
+}
+
+
+// ── 년도별 현황표 ──────────────────────────────────────
+const EFFICACY_CATS = ['保湿','控油','持妆','遮瑕','修护','紧致','抗皱','舒缓','敏感肌适用','温和无刺激','其他'];
+
+function mapEfficacy(item) {
+  // 시간 단위 제거: 12h控油 → 控油, 8h保湿 → 保湿 등
+  const t = item.trim().replace(/^\d+[hH天]\s*/,'').replace(/\d+[hH天]\s*/g,'');
+  if (/保湿|补水/.test(t)) return '保湿';
+  if (/控油/.test(t)) return '控油';
+  if (/修护|修复/.test(t)) return '修护';
+  if (/紧致|弹力/.test(t)) return '紧致';
+  if (/抗皱|皱纹/.test(t)) return '抗皱';
+  if (/舒缓/.test(t)) return '舒缓';
+  if (/敏感肌/.test(t)) return '敏感肌适用';
+  if (/温和|无刺激/.test(t)) return '温和无刺激';
+  if (/持妆/.test(t)) return '持妆';
+  if (/遮瑕/.test(t)) return '遮瑕';
+  return '其他';
+}
+
+function getWeekInfo(dateStr) {
+  if (!dateStr) return null;
+  // 다양한 날짜 형식 처리: 2026-05-18, 2026.05.18, 2026年05月18日 등
+  let cleaned = String(dateStr).trim();
+  cleaned = cleaned.replace(/年|월/g,'-').replace(/月/g,'-').replace(/日|일/g,'');
+  cleaned = cleaned.replace(/\./g,'-');
+  // YYYY-MM-DD 형식으로 정규화
+  const match = cleaned.match(/(\d{4})[\-\/](\d{1,2})[\-\/](\d{1,2})/);
+  if (!match) return null;
+  const year = parseInt(match[1]);
+  const month = parseInt(match[2]);
+  const day = parseInt(match[3]);
+  if (isNaN(year)||isNaN(month)||isNaN(day)) return null;
+  return {
+    year, month, day,
+    quarter: Math.ceil(month/3),
+    weekOfMonth: Math.ceil(day/7),
+    key: `${month}-${Math.ceil(day/7)}`
+  };
+}
+
+let yearlyOpen = true;
+
+function toggleYearly() {
+  yearlyOpen = !yearlyOpen;
+  document.getElementById('yearlyBody').style.display = yearlyOpen ? 'block' : 'none';
+  document.getElementById('yearlyChevron').style.transform = yearlyOpen ? 'rotate(180deg)' : '';
+  if (yearlyOpen) renderYearlyTable();
+}
+
+function initYearSelect() {
+  const sel = document.getElementById('yearSelect');
+  const cur = new Date().getFullYear();
+  sel.innerHTML = '';
+  for (let y = cur; y >= cur-3; y--) {
+    const o = document.createElement('option');
+    o.value = y; o.textContent = y+'年';
+    if (y === cur) o.selected = true;
+    sel.appendChild(o);
+  }
+}
+
+function renderYearlyTable() {
+  const year = parseInt(document.getElementById('yearSelect').value);
+  const all = [...state.pending, ...state.ongoing, ...state.done];
+  const filtered = all.filter(e => { const w = getWeekInfo(e.date); return w && w.year === year; });
+
+  // 집계
+  const counts = {};
+  EFFICACY_CATS.forEach(c => { counts[c] = {}; });
+  filtered.forEach(e => {
+    const wi = getWeekInfo(e.date);
+    if (!wi) return;
+    const wk = wi.key;
+    (e.items||[]).forEach(item => {
+      const cat = mapEfficacy(item);
+      counts[cat][wk] = (counts[cat][wk]||0) + 1;
+    });
+  });
+
+  const rowTotals = {};
+  EFFICACY_CATS.forEach(c => { rowTotals[c] = Object.values(counts[c]).reduce((a,b)=>a+b,0); });
+
+  let t = '<table class="stat-table"><thead>';
+  // 1행: 분기
+  t += '<tr><th rowspan="3">功效项目</th>';
+  [1,2,3,4].forEach(q => { t += `<th colspan="12" class="quarter-header">${q}Q</th>`; });
+  t += '<th rowspan="3" class="total-col">합계</th></tr>';
+  // 2행: 월
+  t += '<tr>';
+  for (let m=1; m<=12; m++) t += `<th colspan="4">${m}月</th>`;
+  t += '</tr>';
+  // 3행: 주차
+  t += '<tr>';
+  for (let m=1; m<=12; m++) for (let w=1; w<=4; w++) t += `<th>${w}周</th>`;
+  t += '</tr></thead><tbody>';
+
+  // 데이터행
+  EFFICACY_CATS.forEach(cat => {
+    t += `<tr><td>${cat}</td>`;
+    for (let m=1; m<=12; m++) {
+      for (let w=1; w<=4; w++) {
+        const v = counts[cat][`${m}-${w}`]||0;
+        t += v > 0 ? `<td class="stat-cell-val">${v}</td>` : `<td class="stat-cell-zero">-</td>`;
+      }
+    }
+    t += `<td class="total-col">${rowTotals[cat]||'-'}</td></tr>`;
+  });
+
+  // 합계행
+  t += '<tr><td style="font-weight:700;">합계</td>';
+  for (let m=1; m<=12; m++) {
+    for (let w=1; w<=4; w++) {
+      const v = EFFICACY_CATS.reduce((a,c)=>a+(counts[c][`${m}-${w}`]||0),0);
+      t += v > 0 ? `<td style="font-weight:700;">${v}</td>` : `<td class="stat-cell-zero">-</td>`;
+    }
+  }
+  const grand = Object.values(rowTotals).reduce((a,b)=>a+b,0);
+  t += `<td class="total-col" style="font-weight:700;">${grand||'-'}</td></tr>`;
+  t += '</tbody></table>';
+
+  document.getElementById('yearlyTable').innerHTML = t;
+}
+
+function renderAll() {
+  updateSummary();
+  const wrap = document.getElementById('sections');
+  wrap.innerHTML = '';
+  CATS.forEach(cat => {
+    const items = countItems(cat.key);
+    const prods = state[cat.key].length;
+    const sec = document.createElement('div');
+    sec.className = 'section';
+
+    const hdr = document.createElement('div');
+    hdr.className = 'sec-header';
+    hdr.innerHTML = `
+      <div class="sec-left">
+        <div class="sec-dot ${cat.dot}"></div>
+        <span class="sec-title">${cat.label}</span>
+        <span class="sec-badge ${cat.badge}">${prods}건</span>
+      </div>
+      <span class="chevron ${open[cat.key]?'open':''}">▼</span>`;
+    hdr.onclick = () => { open[cat.key] = !open[cat.key]; renderAll(); };
+    sec.appendChild(hdr);
+
+    const body = document.createElement('div');
+    body.className = 'sec-body' + (open[cat.key] ? ' open' : '');
+    const totalItems = Object.values(items).reduce((a,b)=>a+b,0);
+    body.innerHTML = `
+      <div class="metrics-row">
+        <div class="metric-box"><div class="metric-label">产品数量</div><div class="metric-val">${prods}</div></div>
+        <div class="metric-box"><div class="metric-label">功效项目 总件数</div><div class="metric-val">${totalItems}</div></div>
+      </div>
+      <div class="chips-label">各项功效项目 件数</div>
+      <div class="chips">${
+        Object.keys(items).length === 0
+          ? '<span style="font-size:12px;color:#ccc;">无项目</span>'
+          : Object.entries(items).sort((a,b)=>b[1]-a[1]).map(([it,cnt]) =>
+              `<div class="chip">${it}<span class="chip-cnt ${cat.cnt}">${cnt}</span></div>`
+            ).join('')
+      }</div>`;
+
+    const list = document.createElement('div');
+    list.className = 'entry-list'; list.id = 'cat-list-' + cat.key;
+    if (state[cat.key].length === 0) {
+      list.innerHTML = '<div class="empty-msg">无登记的内容</div>';
+    } else {
+      state[cat.key].forEach(e => {
+        const row = document.createElement('div');
+        row.className = 'entry-row';
+        const others = CATS.filter(x => x.key !== cat.key);
+        row.innerHTML = `
+          <span class="entry-no">${e.no}</span>
+          <span class="entry-name" title="${e.name}">${e.name}</span>
+          <span class="entry-items" title="${e.labno||''}" style="color:#3b82f6;min-width:80px;flex-shrink:0">${e.labno||'-'}</span>
+          <span class="entry-items" title="${e.items.join(', ')}">${e.items.join(', ')}</span>
+          <div class="entry-actions">
+            ${others.map(x => `<button class="act-btn" onclick="moveEntry('${e.id}','${cat.key}','${x.key}')">${x.label.replace('测试准备中（未进行）','准备中').replace('测试中','进行中').replace('测试结束','已结束')}▸</button>`).join('')}
+            <button class="act-btn act-del" onclick="delEntry('${e.id}','${cat.key}')">删除</button>
+          </div>`;
+        list.appendChild(row);
+      });
+    }
+    body.appendChild(list);
+
+    const addRow = document.createElement('div');
+    addRow.className = 'add-row';
+    addRow.innerHTML = `
+      <input class="add-inp" id="n-${cat.key}" placeholder="产品名" style="flex:1.2">
+      <input class="add-inp" id="l-${cat.key}" placeholder="Lab No" style="flex:.8;min-width:80px">
+      <input class="add-inp" id="i-${cat.key}" placeholder="功效项目 (쉼표 구분)" style="flex:1.8">
+      <input class="add-inp" id="m-${cat.key}" placeholder="负责人" style="flex:.8;min-width:70px">
+      <button class="add-submit" onclick="addEntry('${cat.key}')">+ 添加</button>`;
+    body.appendChild(addRow);
+    sec.appendChild(body);
+    wrap.appendChild(sec);
+  });
+  // 검색어 있으면 재적용
+  if (searchKeyword) applySearch();
+  // 통계 열려있으면 갱신
+  if (statOpen) renderStat();
+}
+
+async function addEntry(key) {
+  const nameEl  = document.getElementById(`n-${key}`);
+  const labEl   = document.getElementById(`l-${key}`);
+  const itemsEl = document.getElementById(`i-${key}`);
+  const manEl   = document.getElementById(`m-${key}`);
+  const name = nameEl.value.trim();
+  if (!name) { nameEl.focus(); return; }
+  const entry = {
+    id: nextId++, no: makeNo(), name,
+    labno: labEl.value.trim(),
+    items: itemsEl.value.split(',').map(s=>s.trim()).filter(Boolean),
+    date: new Date().toISOString().slice(0,10),
+    manager: manEl.value.trim(),
+  };
+  state[key].push(entry);
+  nameEl.value=''; labEl.value=''; itemsEl.value=''; manEl.value='';
+  renderAll();
+  await saveToSheets(entry, key);
+  showToast('添加完成 · 已保存至Sheets');
+}
+
+async function moveEntry(id, fromKey, toKey) {
+  const idx = state[fromKey].findIndex(e => String(e.id)===String(id));
+  if (idx===-1) return;
+  const entry = state[fromKey].splice(idx,1)[0];
+  state[toKey].push(entry);
+  renderAll();
+  await updateSheets(entry.no, toKey);
+  showToast(`"${entry.name}" → ${CATS.find(c=>c.key===toKey).label}`);
+}
+
+async function delEntry(id, key) {
+  const idx = state[key].findIndex(e => String(e.id)===String(id));
+  if (idx===-1) return;
+  const entry = state[key].splice(idx,1)[0];
+  renderAll();
+  await deleteFromSheets(entry.no);
+  showToast(`"${entry.name}" 删除됨`);
+}
+
+checkApiKey();
+loadFromSheets();
+initYearSelect();
+renderYearlyTable();
+initSfYear();
+
+</script>
+</body>
+</html>
